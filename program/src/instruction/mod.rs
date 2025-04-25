@@ -1,9 +1,13 @@
 use pinocchio::program_error::ProgramError;
 
+pub mod authorized_checked;
 pub mod initialize_mystate;
+pub mod split;
 pub mod update_mystate;
 
+pub use authorized_checked::*;
 pub use initialize_mystate::*;
+pub use split::*;
 pub use update_mystate::*;
 
 #[repr(u8)]

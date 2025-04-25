@@ -7,6 +7,7 @@ mod entrypoint;
 extern crate std;
 
 pub mod error;
+pub mod helpers;
 pub mod instruction;
 pub mod state;
 

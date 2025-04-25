@@ -1,7 +1,7 @@
 use pinocchio::program_error::ProgramError;
 
 #[derive(Clone, PartialEq, shank::ShankType)]
-pub enum MyProgramError {
+pub enum StakeError {
     // overflow error
     WriteOverflow,
     // invalid instruction data
