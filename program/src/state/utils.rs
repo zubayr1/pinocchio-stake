@@ -3,9 +3,16 @@ use pinocchio::{
     program_error::ProgramError,
     pubkey::Pubkey,
     sysvars::{rent::Rent, Sysvar},
+    SUCCESS,
 };
 
+extern crate alloc;
 use crate::{consts::MAX_SIGNERS, error::StakeError};
+use alloc::boxed::Box;
+use alloc::sync::Arc;
+use core::cell::UnsafeCell;
+
+use super::Meta;
 
 pub trait DataLen {
     const LEN: usize;
@@ -71,7 +78,7 @@ pub unsafe fn to_mut_bytes<T: DataLen>(data: &mut T) -> &mut [u8] {
     core::slice::from_raw_parts_mut(data as *mut T as *mut u8, T::LEN)
 }
 
-//Stake Program Utils
+//---------- Stake Program Utils -------------
 
 pub fn collect_signers(
     accounts: &[AccountInfo],
@@ -101,7 +108,7 @@ pub fn next_account_info<'a, I: Iterator<Item = &'a AccountInfo>>(
 #[macro_export]
 macro_rules! impl_sysvar_id {
     ($type:ty) => {
-        impl $crate::helpers::sysvar_stake_history::SysvarId for $type {
+        impl $crate::helpers::sysvar_interface_stake_history::SysvarId for $type {
             fn id() -> $crate::Pubkey {
                 id()
             }
@@ -203,4 +210,108 @@ pub(crate) fn validate_split_amount(
         source_remaining_balance,
         destination_rent_exempt_reserve,
     })
+}
+
+//-------------- Solana Program Sysvar Copies ---------------
+
+//---------------- This Get Sysvar was assisted by AI, needs to be checked ----------------------
+//For this syscall mock, unlike solana program we use single thread to mantain the no_std enviorement
+//Defining a generic Lazy<T> struct with interior mutability
+pub struct Lazy<T> {
+    value: UnsafeCell<Option<T>>,
+}
+
+impl<T> Lazy<T> {
+    pub const fn new() -> Self {
+        Self {
+            value: UnsafeCell::new(None),
+        }
+    }
+
+    pub fn get_or_init<F: FnOnce() -> T>(&self, init: F) -> &T {
+        // SAFETY: Only safe because Solana programs are single-threaded.
+        // So its ok to get mutable access (even though `self` is shared!)
+        unsafe {
+            let value = &mut *self.value.get();
+            if value.is_none() {
+                *value = Some(init());
+            }
+            value.as_ref().unwrap()
+        }
+    }
+}
+
+static SYSCALL_STUBS: Lazy<Box<dyn SyscallStubs>> = Lazy::new();
+
+unsafe impl<T> Sync for Lazy<T> {} //although this is telling that is available for multithreading, we know it wont happen
+
+/// Builtin return values occupy the upper 32 bits
+const BUILTIN_BIT_SHIFT: usize = 32;
+macro_rules! to_builtin {
+    ($error:expr) => {
+        ($error as u64) << BUILTIN_BIT_SHIFT
+    };
+}
+
+pub const UNSUPPORTED_SYSVAR: u64 = to_builtin!(17);
+
+pub trait SyscallStubs: Sync + Send {
+    fn sol_get_sysvar(
+        &self,
+        _sysvar_id_addr: *const u8,
+        _var_addr: *mut u8,
+        _offset: u64,
+        _length: u64,
+    ) -> u64 {
+        UNSUPPORTED_SYSVAR
+    }
+}
+
+pub struct DefaultSyscallStubs {}
+
+impl SyscallStubs for DefaultSyscallStubs {}
+
+#[allow(dead_code)]
+pub(crate) fn sol_get_sysvar(
+    sysvar_id_addr: *const u8,
+    var_addr: *mut u8,
+    offset: u64,
+    length: u64,
+) -> u64 {
+    SYSCALL_STUBS
+        .get_or_init(|| Box::new(DefaultSyscallStubs {}))
+        .sol_get_sysvar(sysvar_id_addr, var_addr, offset, length)
+}
+
+//---------------- End of AI assistance ----------------------
+
+/// Handler for retrieving a slice of sysvar data from the `sol_get_sysvar`
+/// syscall.
+pub fn get_sysvar(
+    dst: &mut [u8],
+    sysvar_id: &Pubkey,
+    offset: u64,
+    length: u64,
+) -> Result<(), ProgramError> {
+    // Check that the provided destination buffer is large enough to hold the
+    // requested data.
+    if dst.len() < length as usize {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    let sysvar_id = sysvar_id as *const _ as *const u8;
+    let var_addr = dst as *mut _ as *mut u8;
+
+    #[cfg(target_os = "solana")]
+    let result = unsafe {
+        solana_define_syscall::definitions::sol_get_sysvar(sysvar_id, var_addr, offset, length)
+    };
+
+    #[cfg(not(target_os = "solana"))]
+    let result = sol_get_sysvar(sysvar_id, var_addr, offset, length);
+
+    match result {
+        SUCCESS => Ok(()),
+        e => Err(e.into()),
+    }
 }

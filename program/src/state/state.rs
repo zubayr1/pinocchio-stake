@@ -6,8 +6,11 @@
 
 #[cfg(feature = "borsh")]
 use borsh::{io, BorshDeserialize, BorshSchema, BorshSerialize};
-use pinocchio::program_error::ProgramError;
-use pinocchio::Sysvars::
+use pinocchio::{program_error::ProgramError, sysvars::clock::{Clock, Epoch}};
+
+use crate::helpers::StakeHistoryEntry;
+
+/* 
 use {
     crate::{
         error::StakeError,
@@ -20,6 +23,8 @@ use {
     solana_pubkey::Pubkey,
     std::collections::HashSet,
 };
+
+*/
 
 pub type StakeActivationStatus = StakeHistoryEntry;
 
