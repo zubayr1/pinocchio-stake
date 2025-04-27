@@ -2,9 +2,11 @@ use pinocchio::program_error::ProgramError;
 
 pub mod initialize_mystate;
 pub mod update_mystate;
+pub mod redelegate;
 
 pub use initialize_mystate::*;
 pub use update_mystate::*;
+pub use redelegate::*;
 
 #[repr(u8)]
 pub enum MyProgramInstruction {
