@@ -1,11 +1,14 @@
 use crate::helpers::*;
-use pinocchio::{account_info::AccountInfo, pubkey::Pubkey, sysvars::clock::Clock, ProgramResult};
+use pinocchio::{
+    account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey, sysvars::clock::Clock,
+    ProgramResult,
+};
+
+use crate::state::utils::{collect_signers, next_account_info};
 
 /*
 use solana_program::{
     account_info::{next_account_info},
-    clock::Clock,
-    entrypoint::ProgramResult,
     msg,
     program::set_return_data,
     program_error::ProgramError,
@@ -24,28 +27,21 @@ use solana_program::{
     vote::{program as solana_vote_program, state::VoteState},
 };
 */
-use std::{collections::HashSet, mem::MaybeUninit};
+use core::mem::MaybeUninit;
 
 // almost all native stake program processors accumulate every account signer
 // they then defer all signer validation to functions on Meta or Authorized
 // this results in an instruction interface that is much looser than the one documented
 // to avoid breaking backwards compatibility, we do the same here
 // in the future, we may decide to tighten the interface and break badly formed transactions
-fn collect_signers(accounts: &[AccountInfo]) -> HashSet<Pubkey> {
-    let mut signers = HashSet::new();
-
-    for account in accounts {
-        if account.is_signer() {
-            signers.insert(*account.key());
-        }
-    }
-
-    signers
-}
 
 pub fn process_split(accounts: &[AccountInfo], split_lamports: u64) -> ProgramResult {
-    let signers = collect_signers(accounts);
+    //--------- Updated this --------
+    let mut signers_arr = [Pubkey::default(), 32];
+    let signers_arr_len = collect_signers(accounts, &mut signers_arr);
     let account_info_iter = &mut accounts.iter();
+
+    //----------- Finish Update ----------
 
     // native asserts: 2 accounts
     let source_stake_account_info = next_account_info(account_info_iter)?;

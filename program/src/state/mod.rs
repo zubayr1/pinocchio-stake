@@ -1,5 +1,5 @@
-pub mod my_state;
+pub mod state;
 pub mod utils;
 
-pub use my_state::*;
+pub use state::*;
 pub use utils::*;
