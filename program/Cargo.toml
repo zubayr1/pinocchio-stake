@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-pinocchio = "=0.8.1"
+pinocchio = "=0.8.3"
 pinocchio-log = "0.4.0"
 pinocchio-pubkey = "0.2.4"
 pinocchio-system = "0.2.3"
@@ -22,6 +22,7 @@ mollusk-svm-bencher = "0.1.4"
 
 
 [features]
+logging = []
 no-entrypoint = []
 std = []
 test-default = ["no-entrypoint", "std"]
