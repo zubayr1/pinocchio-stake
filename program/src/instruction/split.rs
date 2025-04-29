@@ -17,34 +17,6 @@ use pinocchio::{
 
 use crate::state::utils::{collect_signers, next_account_info};
 
-/*
-use solana_program::{
-    account_info::{next_account_info},
-    msg,
-    program::set_return_data,
-    program_error::ProgramError,
-    pubkey::Pubkey,
-    rent::Rent,
-
-    //------- These we need to convert to Pinocchio ---------------
-    stake::{
-        instruction::{
-            AuthorizeCheckedWithSeedArgs, AuthorizeWithSeedArgs, LockupArgs, LockupCheckedArgs,
-            StakeError, StakeInstruction,
-        },
-        stake_flags::StakeFlags,
-        state::{Authorized, Lockup, Meta, StakeAuthorize, StakeStateV2},
-        tools::{acceptable_reference_epoch_credits, eligible_for_deactivate_delinquent},
-    },
-    //---------------------------------------------------------
-
-    sysvar::{epoch_rewards::EpochRewards, stake_history::StakeHistorySysvar, Sysvar},
-
-    vote::{program as solana_vote_program, state::VoteState},
-};
-*/
-use core::mem::MaybeUninit;
-
 // almost all native stake program processors accumulate every account signer
 // they then defer all signer validation to functions on Meta or Authorized
 // this results in an instruction interface that is much looser than the one documented
