@@ -3,16 +3,18 @@ use pinocchio::{
     program_error::ProgramError,
     pubkey::Pubkey,
     sysvars::{rent::Rent, Sysvar},
-    SUCCESS,
+    ProgramResult, SUCCESS,
 };
 
 extern crate alloc;
-use crate::{consts::MAX_SIGNERS, error::StakeError};
+use crate::{
+    consts::{FEATURE_STAKE_RAISE_MINIMUM_DELEGATION_TO_1_SOL, LAMPORTS_PER_SOL, MAX_SIGNERS},
+    error::StakeError,
+};
 use alloc::boxed::Box;
-use alloc::sync::Arc;
 use core::cell::UnsafeCell;
 
-use super::Meta;
+use super::{Meta, StakeStateV2};
 
 pub trait DataLen {
     const LEN: usize;
@@ -65,7 +67,7 @@ pub unsafe fn load_acc_mut_unchecked<T: DataLen>(bytes: &mut [u8]) -> Result<&mu
 #[inline(always)]
 pub unsafe fn load_ix_data<T: DataLen>(bytes: &[u8]) -> Result<&T, ProgramError> {
     if bytes.len() != T::LEN {
-        return Err(StakeError::InvalidInstructionData.into());
+        return Err(ProgramError::InvalidInstructionData.into());
     }
     Ok(&*(bytes.as_ptr() as *const T))
 }
@@ -109,11 +111,11 @@ pub fn next_account_info<'a, I: Iterator<Item = &'a AccountInfo>>(
 macro_rules! impl_sysvar_id {
     ($type:ty) => {
         impl $crate::helpers::sysvar_interface_stake_history::SysvarId for $type {
-            fn id() -> $crate::Pubkey {
+            fn id() -> Pubkey {
                 id()
             }
 
-            fn check_id(pubkey: &$crate::Pubkey) -> bool {
+            fn check_id(pubkey: &Pubkey) -> bool {
                 check_id(pubkey)
             }
         }
@@ -314,4 +316,64 @@ pub fn get_sysvar(
         SUCCESS => Ok(()),
         e => Err(e.into()),
     }
+}
+
+pub fn get_stake_state(stake_account_info: &AccountInfo) -> Result<StakeStateV2, ProgramError> {
+    if unsafe { *stake_account_info.owner() } != crate::ID {
+        return Err(ProgramError::InvalidAccountOwner);
+    }
+
+    let data = stake_account_info.try_borrow_data()?;
+    bincode::deserialize::<StakeStateV2>(&data).map_err(|_| ProgramError::InvalidAccountData)
+}
+
+pub fn to_program_error(e: ProgramError) -> ProgramError {
+    ProgramError::try_from(e).unwrap_or(ProgramError::InvalidAccountData)
+}
+
+#[inline(always)]
+pub fn get_minimum_delegation() -> u64 {
+    if FEATURE_STAKE_RAISE_MINIMUM_DELEGATION_TO_1_SOL {
+        const MINIMUM_DELEGATION_SOL: u64 = 1;
+        MINIMUM_DELEGATION_SOL * LAMPORTS_PER_SOL
+    } else {
+        1
+    }
+}
+
+// dont call this "move" because we have an instruction MoveLamports
+pub fn relocate_lamports(
+    source_account_info: &AccountInfo,
+    destination_account_info: &AccountInfo,
+    lamports: u64,
+) -> ProgramResult {
+    {
+        let mut source_lamports = source_account_info.try_borrow_mut_lamports()?;
+        *source_lamports = source_lamports
+            .checked_sub(lamports)
+            .ok_or(ProgramError::InsufficientFunds)?;
+    }
+
+    {
+        let mut destination_lamports = destination_account_info.try_borrow_mut_lamports()?;
+        *destination_lamports = destination_lamports
+            .checked_add(lamports)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
+    }
+
+    Ok(())
+}
+
+pub fn set_stake_state(
+    stake_account_info: &AccountInfo,
+    new_state: &StakeStateV2,
+) -> ProgramResult {
+    let serialized_size =
+        bincode::serialized_size(new_state).map_err(|_| ProgramError::InvalidAccountData)?;
+    if serialized_size > stake_account_info.data_len() as u64 {
+        return Err(ProgramError::AccountDataTooSmall);
+    }
+
+    let data = stake_account_info.try_borrow_data()?;
+    bincode::serialize_into(&mut data?[..], new_state).map_err(|_| ProgramError::InvalidAccountData)
 }

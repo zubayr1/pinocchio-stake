@@ -1,6 +1,17 @@
-use crate::helpers::*;
+use crate::{
+    consts::PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH,
+    error::StakeError,
+    helpers::*,
+    state::{
+        get_minimum_delegation, get_stake_state, relocate_lamports, set_stake_state,
+        to_program_error, validate_split_amount, StakeAuthorize, StakeStateV2,
+    },
+};
 use pinocchio::{
-    account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey, sysvars::clock::Clock,
+    account_info::AccountInfo,
+    program_error::ProgramError,
+    pubkey::Pubkey,
+    sysvars::{clock::Clock, Sysvar},
     ProgramResult,
 };
 
@@ -14,6 +25,8 @@ use solana_program::{
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
+
+    //------- These we need to convert to Pinocchio ---------------
     stake::{
         instruction::{
             AuthorizeCheckedWithSeedArgs, AuthorizeWithSeedArgs, LockupArgs, LockupCheckedArgs,
@@ -23,7 +36,10 @@ use solana_program::{
         state::{Authorized, Lockup, Meta, StakeAuthorize, StakeStateV2},
         tools::{acceptable_reference_epoch_credits, eligible_for_deactivate_delinquent},
     },
+    //---------------------------------------------------------
+
     sysvar::{epoch_rewards::EpochRewards, stake_history::StakeHistorySysvar, Sysvar},
+
     vote::{program as solana_vote_program, state::VoteState},
 };
 */
@@ -37,8 +53,11 @@ use core::mem::MaybeUninit;
 
 pub fn process_split(accounts: &[AccountInfo], split_lamports: u64) -> ProgramResult {
     //--------- Updated this --------
-    let mut signers_arr = [Pubkey::default(), 32];
-    let signers_arr_len = collect_signers(accounts, &mut signers_arr);
+
+    //Instead of an HashSet we can use an array.
+    //Collect signers will return the array length and fill this signers array instead of returning the HashSet
+    let mut signers_arr = [Pubkey::default(); 32];
+    let _signers = collect_signers(accounts, &mut signers_arr)?;
     let account_info_iter = &mut accounts.iter();
 
     //----------- Finish Update ----------
@@ -75,10 +94,10 @@ pub fn process_split(accounts: &[AccountInfo], split_lamports: u64) -> ProgramRe
         StakeStateV2::Stake(source_meta, mut source_stake, stake_flags) => {
             source_meta
                 .authorized
-                .check(&signers, StakeAuthorize::Staker)
+                .check(&signers_arr, StakeAuthorize::Staker)
                 .map_err(to_program_error)?;
 
-            let minimum_delegation = crate::get_minimum_delegation();
+            let minimum_delegation = get_minimum_delegation();
 
             let status = source_stake.delegation.stake_activating_and_deactivating(
                 clock.epoch,
@@ -163,7 +182,7 @@ pub fn process_split(accounts: &[AccountInfo], split_lamports: u64) -> ProgramRe
         StakeStateV2::Initialized(source_meta) => {
             source_meta
                 .authorized
-                .check(&signers, StakeAuthorize::Staker)
+                .check(&signers_arr, StakeAuthorize::Staker)
                 .map_err(to_program_error)?;
 
             // NOTE this function also internally summons Rent via syscall
@@ -187,7 +206,7 @@ pub fn process_split(accounts: &[AccountInfo], split_lamports: u64) -> ProgramRe
             )?;
         }
         StakeStateV2::Uninitialized => {
-            if !source_stake_account_info.is_signer {
+            if !source_stake_account_info.is_signer() {
                 return Err(ProgramError::MissingRequiredSignature);
             }
         }

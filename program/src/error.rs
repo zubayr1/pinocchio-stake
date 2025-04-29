@@ -1,12 +1,24 @@
+use core::fmt;
+
 use pinocchio::program_error::ProgramError;
 
-use {
-    num_traits::{FromPrimitive, ToPrimitive},
-    solana_decode_error::DecodeError,
-};
+pub trait FromPrimitive {
+    fn from_u64(n: u64) -> Option<Self>
+    where
+        Self: Sized;
+    fn from_i64(n: i64) -> Option<Self>
+    where
+        Self: Sized;
+}
+
+pub trait ToPrimitive {
+    fn to_i64(&self) -> Option<i64>;
+    fn to_u64(&self) -> Option<u64> {
+        self.to_i64().map(|v| v as u64)
+    }
+}
 
 /// Reasons the Stake might have had an error.
-#[cfg_attr(test, derive(strum_macros::FromRepr, strum_macros::EnumIter))]
 #[cfg_attr(
     feature = "serde",
     derive(serde_derive::Deserialize, serde_derive::Serialize)
@@ -160,6 +172,11 @@ impl ToPrimitive for StakeError {
 
 impl core::error::Error for StakeError {}
 
+//---------------------------- SUGESTION FOR UPGRADE -----------------
+// Here we could use Pinocchio Log instead of f.write_str and not use Display trait
+// By: Apollo
+//--------------------------------- End of Note ----------------------
+
 impl core::fmt::Display for StakeError {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         match self {
@@ -205,56 +222,32 @@ impl core::fmt::Display for StakeError {
     }
 }
 
-impl<E> DecodeError<E> for StakeError {
-    fn type_of() -> &'static str {
-        "StakeError"
+#[derive(Debug)]
+pub enum LamportsError {
+    /// arithmetic underflowed
+    ArithmeticUnderflow,
+    /// arithmetic overflowed
+    ArithmeticOverflow,
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for LamportsError {}
+
+impl fmt::Display for LamportsError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::ArithmeticUnderflow => f.write_str("Arithmetic underflowed"),
+            Self::ArithmeticOverflow => f.write_str("Arithmetic overflowed"),
+        }
     }
 }
 
-/*
-
-#[cfg(test)]
-mod tests {
-    use {
-        super::StakeError, num_traits::FromPrimitive, solana_decode_error::DecodeError,
-        solana_instruction::error::InstructionError, strum::IntoEnumIterator,
-    };
-
-    #[test]
-    fn test_stake_error_from_primitive_exhaustive() {
-        for variant in StakeError::iter() {
-            let variant_i64 = variant.clone() as i64;
-            assert_eq!(
-                StakeError::from_repr(variant_i64 as usize),
-                StakeError::from_i64(variant_i64)
-            );
+#[cfg(feature = "std")]
+impl From<LamportsError> for InstructionError {
+    fn from(error: LamportsError) -> Self {
+        match error {
+            LamportsError::ArithmeticOverflow => InstructionError::ArithmeticOverflow,
+            LamportsError::ArithmeticUnderflow => InstructionError::ArithmeticOverflow,
         }
-    }
-
-    #[test]
-    fn test_custom_error_decode() {
-        use num_traits::FromPrimitive;
-        fn pretty_err<T>(err: InstructionError) -> String
-        where
-            T: 'static + std::error::Error + DecodeError<T> + FromPrimitive,
-        {
-            if let InstructionError::Custom(code) = err {
-                let specific_error: T = T::decode_custom_error_to_enum(code).unwrap();
-                format!(
-                    "{:?}: {}::{:?} - {}",
-                    err,
-                    T::type_of(),
-                    specific_error,
-                    specific_error,
-                )
-            } else {
-                "".to_string()
-            }
-        }
-        assert_eq!(
-            "Custom(0): StakeError::NoCreditsToRedeem - not enough credits to redeem",
-            pretty_err::<StakeError>(StakeError::NoCreditsToRedeem.into())
-        )
     }
 }
- */
