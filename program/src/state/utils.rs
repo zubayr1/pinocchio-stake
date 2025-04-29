@@ -1,20 +1,19 @@
 use pinocchio::{
-    account_info::AccountInfo,
+    account_info::{AccountInfo, Ref},
     program_error::ProgramError,
     pubkey::Pubkey,
-    sysvars::{rent::Rent, Sysvar},
+    sysvars::{clock::Clock, rent::Rent, Sysvar},
     ProgramResult, SUCCESS,
 };
 
 extern crate alloc;
-use crate::{
-    consts::{FEATURE_STAKE_RAISE_MINIMUM_DELEGATION_TO_1_SOL, LAMPORTS_PER_SOL, MAX_SIGNERS},
-    error::StakeError,
+use crate::consts::{
+    FEATURE_STAKE_RAISE_MINIMUM_DELEGATION_TO_1_SOL, LAMPORTS_PER_SOL, MAX_SIGNERS, SYSVAR,
 };
 use alloc::boxed::Box;
 use core::cell::UnsafeCell;
 
-use super::{Meta, StakeStateV2};
+use super::{Meta, StakeAuthorize, StakeStateV2};
 
 pub trait DataLen {
     const LEN: usize;
@@ -304,11 +303,12 @@ pub fn get_sysvar(
     let sysvar_id = sysvar_id as *const _ as *const u8;
     let var_addr = dst as *mut _ as *mut u8;
 
+    //if on Solana call the actual syscall
     #[cfg(target_os = "solana")]
-    let result = unsafe {
-        solana_define_syscall::definitions::sol_get_sysvar(sysvar_id, var_addr, offset, length)
-    };
+    let result =
+        unsafe { pinocchio::syscalls::sol_get_sysvar(sysvar_id, var_addr, offset, length) };
 
+    //if not on chain use the mock
     #[cfg(not(target_os = "solana"))]
     let result = sol_get_sysvar(sysvar_id, var_addr, offset, length);
 
@@ -374,6 +374,64 @@ pub fn set_stake_state(
         return Err(ProgramError::AccountDataTooSmall);
     }
 
-    let data = stake_account_info.try_borrow_data()?;
-    bincode::serialize_into(&mut data?[..], new_state).map_err(|_| ProgramError::InvalidAccountData)
+    let mut data = stake_account_info.try_borrow_mut_data()?;
+    bincode::serialize_into(&mut data[..], new_state).map_err(|_| ProgramError::InvalidAccountData)
+}
+
+pub fn do_authorize(
+    stake_account_info: &AccountInfo,
+    signers: &[Pubkey],
+    new_authority: &Pubkey,
+    authority_type: StakeAuthorize,
+    custodian: Option<&Pubkey>,
+    clock: &Clock,
+) -> ProgramResult {
+    match get_stake_state(stake_account_info)? {
+        StakeStateV2::Initialized(mut meta) => {
+            meta.authorized
+                .authorize(
+                    signers,
+                    new_authority,
+                    authority_type,
+                    Some((&meta.lockup, clock, custodian)),
+                )
+                .map_err(to_program_error)?;
+
+            set_stake_state(stake_account_info, &StakeStateV2::Initialized(meta))
+        }
+        StakeStateV2::Stake(mut meta, stake, stake_flags) => {
+            meta.authorized
+                .authorize(
+                    signers,
+                    new_authority,
+                    authority_type,
+                    Some((&meta.lockup, clock, custodian)),
+                )
+                .map_err(to_program_error)?;
+
+            set_stake_state(
+                stake_account_info,
+                &StakeStateV2::Stake(meta, stake, stake_flags),
+            )
+        }
+        _ => Err(ProgramError::InvalidAccountData),
+    }
+}
+
+//Clock doesn't have a from_account_info, so we implemt it, inspired from TokenAccount Pinocchio impl
+
+pub fn clock_from_account_info(account_info: &AccountInfo) -> Result<Ref<Clock>, ProgramError> {
+    if account_info.data_len() != core::mem::size_of::<Clock>() {
+        return Err(ProgramError::InvalidAccountData);
+    }
+
+    if !account_info.is_owned_by(&SYSVAR) {
+        return Err(ProgramError::InvalidAccountData);
+    }
+
+    //not sure if we get the data this way, needs to be checked
+    let clock_acc = Ref::map(account_info.try_borrow_data()?, |data| unsafe {
+        &*(data.as_ptr() as *const Clock)
+    });
+    Ok(clock_acc)
 }
