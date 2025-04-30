@@ -1,4 +1,4 @@
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 
 #[cfg(not(feature = "no-entrypoint"))]
 mod entrypoint;
@@ -8,7 +8,6 @@ extern crate std;
 
 pub mod consts;
 pub mod error;
-pub mod helpers;
 pub mod instruction;
 pub mod state;
 

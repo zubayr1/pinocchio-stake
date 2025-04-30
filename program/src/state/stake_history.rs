@@ -28,20 +28,20 @@ pub const MAX_ENTRIES: usize = 512; // it should never take as many as 512 epoch
 )]
 #[derive(Debug, PartialEq, Eq, Default, Clone)]
 pub struct StakeHistoryEntry {
-    pub effective: u64,    // effective stake at this epoch
-    pub activating: u64,   // sum of portion of stakes not fully warmed up
-    pub deactivating: u64, // requested to be cooled down, not fully deactivated yet
+    pub effective: [u8; 8],    // effective stake at this epoch
+    pub activating: [u8; 8],   // sum of portion of stakes not fully warmed up
+    pub deactivating: [u8; 8], // requested to be cooled down, not fully deactivated yet
 }
 
 impl StakeHistoryEntry {
-    pub fn with_effective(effective: u64) -> Self {
+    pub fn with_effective(effective: [u8; 8]) -> Self {
         Self {
             effective,
             ..Self::default()
         }
     }
 
-    pub fn with_effective_and_activating(effective: u64, activating: u64) -> Self {
+    pub fn with_effective_and_activating(effective: [u8; 8], activating: [u8; 8]) -> Self {
         Self {
             effective,
             activating,
@@ -51,8 +51,8 @@ impl StakeHistoryEntry {
 
     pub fn with_deactivating(deactivating: u64) -> Self {
         Self {
-            effective: deactivating,
-            deactivating,
+            effective: deactivating.to_le_bytes(),
+            deactivating: deactivating.to_le_bytes(),
             ..Self::default()
         }
     }
@@ -61,10 +61,19 @@ impl StakeHistoryEntry {
 impl core::ops::Add for StakeHistoryEntry {
     type Output = StakeHistoryEntry;
     fn add(self, rhs: StakeHistoryEntry) -> Self::Output {
+        let effective = u64::from_le_bytes(self.effective);
+        let activating = u64::from_le_bytes(self.activating);
+        let deactivating = u64::from_le_bytes(self.deactivating);
         Self {
-            effective: self.effective.saturating_add(rhs.effective),
-            activating: self.activating.saturating_add(rhs.activating),
-            deactivating: self.deactivating.saturating_add(rhs.deactivating),
+            effective: effective
+                .saturating_add(u64::from_le_bytes(rhs.effective))
+                .to_be_bytes(),
+            activating: activating
+                .saturating_add(u64::from_le_bytes(rhs.activating))
+                .to_be_bytes(),
+            deactivating: deactivating
+                .saturating_add(u64::from_le_bytes(rhs.deactivating))
+                .to_be_bytes(),
         }
     }
 }

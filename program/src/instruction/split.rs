@@ -1,10 +1,11 @@
+use core::ops::Deref;
+
 use crate::{
     consts::PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH,
     error::StakeError,
-    helpers::*,
     state::{
-        get_minimum_delegation, get_stake_state, relocate_lamports, set_stake_state,
-        to_program_error, validate_split_amount, StakeAuthorize, StakeStateV2,
+        bytes_to_u64, get_minimum_delegation, get_stake_state, relocate_lamports, set_stake_state,
+        to_program_error, validate_split_amount, StakeAuthorize, StakeHistorySysvar, StakeStateV2,
     },
 };
 use pinocchio::{
@@ -49,7 +50,7 @@ pub fn process_split(accounts: &[AccountInfo], split_lamports: u64) -> ProgramRe
         return Err(ProgramError::InvalidAccountData);
     }
 
-    if let StakeStateV2::Uninitialized = get_stake_state(destination_stake_account_info)? {
+    if let StakeStateV2::Uninitialized = get_stake_state(destination_stake_account_info)?.deref() {
         // we can split into this
     } else {
         return Err(ProgramError::InvalidAccountData);
@@ -62,7 +63,7 @@ pub fn process_split(accounts: &[AccountInfo], split_lamports: u64) -> ProgramRe
         return Err(ProgramError::InsufficientFunds);
     }
 
-    match get_stake_state(source_stake_account_info)? {
+    match get_stake_state(source_stake_account_info)?.deref() {
         StakeStateV2::Stake(source_meta, mut source_stake, stake_flags) => {
             source_meta
                 .authorized
@@ -72,12 +73,12 @@ pub fn process_split(accounts: &[AccountInfo], split_lamports: u64) -> ProgramRe
             let minimum_delegation = get_minimum_delegation();
 
             let status = source_stake.delegation.stake_activating_and_deactivating(
-                clock.epoch,
+                clock.epoch.to_be_bytes(),
                 stake_history,
                 PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH,
             );
 
-            let is_active = status.effective > 0;
+            let is_active = bytes_to_u64(status.effective) > 0;
 
             // NOTE this function also internally summons Rent via syscall
             let validated_split_info = validate_split_amount(
@@ -107,14 +108,15 @@ pub fn process_split(accounts: &[AccountInfo], split_lamports: u64) -> ProgramRe
                     // original rent_exempt_reserve and the split_rent_exempt_reserve, in order
                     // to prevent magic activation of stake by splitting between accounts of
                     // different sizes.
-                    let remaining_stake_delta =
-                        split_lamports.saturating_sub(source_meta.rent_exempt_reserve);
+                    let remaining_stake_delta = split_lamports
+                        .saturating_sub(u64::from_le_bytes(source_meta.rent_exempt_reserve));
                     (remaining_stake_delta, remaining_stake_delta)
                 } else {
                     // Otherwise, the new split stake should reflect the entire split
                     // requested, less any lamports needed to cover the
                     // split_rent_exempt_reserve.
-                    if source_stake.delegation.stake.saturating_sub(split_lamports)
+                    if u64::from_le_bytes(source_stake.delegation.stake)
+                        .saturating_sub(split_lamports)
                         < minimum_delegation
                     {
                         return Err(StakeError::InsufficientDelegation.into());
@@ -137,18 +139,19 @@ pub fn process_split(accounts: &[AccountInfo], split_lamports: u64) -> ProgramRe
             let destination_stake =
                 source_stake.split(remaining_stake_delta, split_stake_amount)?;
 
-            let mut destination_meta = source_meta;
-            destination_meta.rent_exempt_reserve =
-                validated_split_info.destination_rent_exempt_reserve;
+            let mut destination_meta = *source_meta;
+            destination_meta.rent_exempt_reserve = validated_split_info
+                .destination_rent_exempt_reserve
+                .to_be_bytes();
 
             set_stake_state(
                 source_stake_account_info,
-                &StakeStateV2::Stake(source_meta, source_stake, stake_flags),
+                &StakeStateV2::Stake(*source_meta, source_stake, *stake_flags),
             )?;
 
             set_stake_state(
                 destination_stake_account_info,
-                &StakeStateV2::Stake(destination_meta, destination_stake, stake_flags),
+                &StakeStateV2::Stake(destination_meta, destination_stake, *stake_flags),
             )?;
         }
         StakeStateV2::Initialized(source_meta) => {
@@ -168,9 +171,10 @@ pub fn process_split(accounts: &[AccountInfo], split_lamports: u64) -> ProgramRe
                 false, // is_active
             )?;
 
-            let mut destination_meta = source_meta;
-            destination_meta.rent_exempt_reserve =
-                validated_split_info.destination_rent_exempt_reserve;
+            let mut destination_meta = *source_meta;
+            destination_meta.rent_exempt_reserve = validated_split_info
+                .destination_rent_exempt_reserve
+                .to_le_bytes();
 
             set_stake_state(
                 destination_stake_account_info,

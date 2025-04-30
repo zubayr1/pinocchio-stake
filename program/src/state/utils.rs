@@ -2,18 +2,25 @@ use pinocchio::{
     account_info::{AccountInfo, Ref},
     program_error::ProgramError,
     pubkey::Pubkey,
-    sysvars::{clock::Clock, rent::Rent, Sysvar},
+    sysvars::{
+        clock::{Clock, Epoch},
+        rent::Rent,
+        Sysvar,
+    },
     ProgramResult, SUCCESS,
 };
 
 extern crate alloc;
+use super::{
+    get_stake_state, set_stake_state, Meta, StakeAuthorize, StakeStateV2,
+    DEFAULT_WARMUP_COOLDOWN_RATE,
+};
 use crate::consts::{
-    FEATURE_STAKE_RAISE_MINIMUM_DELEGATION_TO_1_SOL, LAMPORTS_PER_SOL, MAX_SIGNERS, SYSVAR,
+    FEATURE_STAKE_RAISE_MINIMUM_DELEGATION_TO_1_SOL, LAMPORTS_PER_SOL, MAX_SIGNERS,
+    NEW_WARMUP_COOLDOWN_RATE, SYSVAR,
 };
 use alloc::boxed::Box;
 use core::cell::UnsafeCell;
-
-use super::{Meta, StakeAuthorize, StakeStateV2};
 
 pub trait DataLen {
     const LEN: usize;
@@ -109,7 +116,7 @@ pub fn next_account_info<'a, I: Iterator<Item = &'a AccountInfo>>(
 #[macro_export]
 macro_rules! impl_sysvar_id {
     ($type:ty) => {
-        impl $crate::helpers::sysvar_interface_stake_history::SysvarId for $type {
+        impl $crate::state::stake_history::SysvarId for $type {
             fn id() -> Pubkey {
                 id()
             }
@@ -164,8 +171,7 @@ pub(crate) fn validate_split_amount(
     // splitting: EITHER at least the minimum balance, OR zero (in this case the
     // source account is transferring all lamports to new destination account,
     // and the source account will be closed)
-    let source_minimum_balance = source_meta
-        .rent_exempt_reserve
+    let source_minimum_balance = u64::from_le_bytes(source_meta.rent_exempt_reserve)
         .saturating_add(additional_required_lamports);
     let source_remaining_balance = source_lamports.saturating_sub(split_lamports);
     if source_remaining_balance == 0 {
@@ -318,15 +324,6 @@ pub fn get_sysvar(
     }
 }
 
-pub fn get_stake_state(stake_account_info: &AccountInfo) -> Result<StakeStateV2, ProgramError> {
-    if unsafe { *stake_account_info.owner() } != crate::ID {
-        return Err(ProgramError::InvalidAccountOwner);
-    }
-
-    let data = stake_account_info.try_borrow_data()?;
-    bincode::deserialize::<StakeStateV2>(&data).map_err(|_| ProgramError::InvalidAccountData)
-}
-
 pub fn to_program_error(e: ProgramError) -> ProgramError {
     ProgramError::try_from(e).unwrap_or(ProgramError::InvalidAccountData)
 }
@@ -341,43 +338,6 @@ pub fn get_minimum_delegation() -> u64 {
     }
 }
 
-// dont call this "move" because we have an instruction MoveLamports
-pub fn relocate_lamports(
-    source_account_info: &AccountInfo,
-    destination_account_info: &AccountInfo,
-    lamports: u64,
-) -> ProgramResult {
-    {
-        let mut source_lamports = source_account_info.try_borrow_mut_lamports()?;
-        *source_lamports = source_lamports
-            .checked_sub(lamports)
-            .ok_or(ProgramError::InsufficientFunds)?;
-    }
-
-    {
-        let mut destination_lamports = destination_account_info.try_borrow_mut_lamports()?;
-        *destination_lamports = destination_lamports
-            .checked_add(lamports)
-            .ok_or(ProgramError::ArithmeticOverflow)?;
-    }
-
-    Ok(())
-}
-
-pub fn set_stake_state(
-    stake_account_info: &AccountInfo,
-    new_state: &StakeStateV2,
-) -> ProgramResult {
-    let serialized_size =
-        bincode::serialized_size(new_state).map_err(|_| ProgramError::InvalidAccountData)?;
-    if serialized_size > stake_account_info.data_len() as u64 {
-        return Err(ProgramError::AccountDataTooSmall);
-    }
-
-    let mut data = stake_account_info.try_borrow_mut_data()?;
-    bincode::serialize_into(&mut data[..], new_state).map_err(|_| ProgramError::InvalidAccountData)
-}
-
 pub fn do_authorize(
     stake_account_info: &AccountInfo,
     signers: &[Pubkey],
@@ -386,7 +346,7 @@ pub fn do_authorize(
     custodian: Option<&Pubkey>,
     clock: &Clock,
 ) -> ProgramResult {
-    match get_stake_state(stake_account_info)? {
+    match *get_stake_state(stake_account_info)? {
         StakeStateV2::Initialized(mut meta) => {
             meta.authorized
                 .authorize(
@@ -434,4 +394,33 @@ pub fn clock_from_account_info(account_info: &AccountInfo) -> Result<Ref<Clock>,
         &*(data.as_ptr() as *const Clock)
     });
     Ok(clock_acc)
+}
+
+// Means that no more than RATE of current effective stake may be added or subtracted per
+// epoch.
+
+pub fn warmup_cooldown_rate(
+    current_epoch: [u8; 8],
+    new_rate_activation_epoch: Option<[u8; 8]>,
+) -> f64 {
+    let current = bytes_to_u64(current_epoch);
+    let activation = new_rate_activation_epoch
+        .map(bytes_to_u64)
+        .unwrap_or(u64::MAX);
+
+    if current < activation {
+        DEFAULT_WARMUP_COOLDOWN_RATE
+    } else {
+        NEW_WARMUP_COOLDOWN_RATE
+    }
+}
+
+pub fn add_le_bytes(lhs: [u8; 8], rhs: [u8; 8]) -> [u8; 8] {
+    u64::from_le_bytes(lhs)
+        .saturating_add(u64::from_le_bytes(rhs))
+        .to_le_bytes()
+}
+
+pub fn bytes_to_u64(bytes: [u8; 8]) -> u64 {
+    u64::from_le_bytes(bytes)
 }

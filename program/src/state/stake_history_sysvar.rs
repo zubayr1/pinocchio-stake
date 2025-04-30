@@ -118,13 +118,13 @@ impl StakeHistoryGetEntry for StakeHistorySysvar {
         match result {
             Ok(()) => {
                 // All safe because `entry_buf` is a 32-length array
-                let entry_epoch = u64::from_le_bytes(entry_buf[0..8].try_into().unwrap());
-                let effective = u64::from_le_bytes(entry_buf[8..16].try_into().unwrap());
-                let activating = u64::from_le_bytes(entry_buf[16..24].try_into().unwrap());
-                let deactivating = u64::from_le_bytes(entry_buf[24..32].try_into().unwrap());
+                let entry_epoch: [u8; 8] = entry_buf[0..8].try_into().unwrap();
+                let effective = entry_buf[8..16].try_into().unwrap();
+                let activating = entry_buf[16..24].try_into().unwrap();
+                let deactivating = entry_buf[24..32].try_into().unwrap();
 
                 // this would only fail if stake history skipped an epoch or the binary format of the sysvar changed
-                assert_eq!(entry_epoch, target_epoch);
+                assert_eq!(u64::from_le_bytes(entry_epoch), target_epoch);
 
                 Some(StakeHistoryEntry {
                     effective,
@@ -138,9 +138,13 @@ impl StakeHistoryGetEntry for StakeHistorySysvar {
 }
 
 /*
+
+//---------------------------- Fix Tests Later ----------------------------------------
 #[cfg(test)]
 mod tests {
-    use {super::*, solana_sysvar_id::SysvarId};
+    use crate::state::StakeHistory;
+
+    use super::*;
 
     #[test]
     fn test_stake_history() {
@@ -169,16 +173,8 @@ mod tests {
 
     #[test]
     fn test_id() {
-        assert_eq!(
-            StakeHistory::id(),
-            solana_program::sysvar::stake_history::id()
-        );
+        assert_eq!(StakeHistory::id(), crate::helpers::stake_history::id());
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use {super::*, crate::tests::mock_get_sysvar_syscall, serial_test::serial};
 
     #[test]
     fn test_size_of() {
@@ -195,6 +191,7 @@ mod tests {
 
         assert_eq!(
             bincode::serialized_size(&stake_history).unwrap() as usize,
+
             StakeHistory::size_of()
         );
 
@@ -207,7 +204,9 @@ mod tests {
             EPOCH_AND_ENTRY_SERIALIZED_SIZE
         );
     }
-   #[serial]
+
+    // TODO
+    //#[serial]
     #[test]
     fn test_stake_history_get_entry() {
         let unique_entry_for_epoch = |epoch: u64| StakeHistoryEntry {
@@ -227,7 +226,10 @@ mod tests {
         assert_eq!(stake_history.iter().map(|entry| entry.0).min().unwrap(), 2);
 
         // set up sol_get_sysvar
-        mock_get_sysvar_syscall(&bincode::serialize(&stake_history).unwrap());
+
+        // TODO
+
+        //mock_get_sysvar_syscall(&bincode::serialize(&stake_history).unwrap());
 
         // make a syscall interface object
         let stake_history_sysvar = StakeHistorySysvar(current_epoch);
@@ -257,7 +259,8 @@ mod tests {
         }
     }
 
-    #[serial]
+    // TODO
+    //#[serial]
     #[test]
     fn test_stake_history_get_entry_zero() {
         let mut current_epoch = 0;
@@ -266,7 +269,7 @@ mod tests {
         let stake_history = StakeHistory::default();
         assert_eq!(stake_history.len(), 0);
 
-        mock_get_sysvar_syscall(&bincode::serialize(&stake_history).unwrap());
+        //mock_get_sysvar_syscall(&bincode::serialize(&stake_history).unwrap());
         let stake_history_sysvar = StakeHistorySysvar(current_epoch);
 
         assert_eq!(stake_history.get(0), None);
@@ -285,7 +288,8 @@ mod tests {
         assert_eq!(stake_history.len(), 1);
         current_epoch = current_epoch.saturating_add(1);
 
-        mock_get_sysvar_syscall(&bincode::serialize(&stake_history).unwrap());
+        // TODO
+        // mock_get_sysvar_syscall(&bincode::serialize(&stake_history).unwrap());
         let stake_history_sysvar = StakeHistorySysvar(current_epoch);
 
         assert_eq!(stake_history.get(0), entry.as_ref());
@@ -297,7 +301,8 @@ mod tests {
         assert_eq!(stake_history.len(), 2);
         current_epoch = current_epoch.saturating_add(1);
 
-        mock_get_sysvar_syscall(&bincode::serialize(&stake_history).unwrap());
+        // TODO
+        // mock_get_sysvar_syscall(&bincode::serialize(&stake_history).unwrap());
         let stake_history_sysvar = StakeHistorySysvar(current_epoch);
 
         assert_eq!(stake_history.get(0), entry.as_ref());
@@ -305,5 +310,4 @@ mod tests {
         assert_eq!(stake_history_sysvar.get_entry(0), entry);
     }
 }
-
-     */
+ */

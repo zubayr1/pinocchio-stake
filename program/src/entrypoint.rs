@@ -46,109 +46,95 @@ fn process_instruction(
     match instruction {
         StakeInstruction::Initialize => {
             #[cfg(feature = "logging")]
-            pinocchio::msg!("Instruction: Initialize");
+            pinocchio_log::log!("Instruction: Initialize");
 
-            todo!()
+            //TODO
         }
         StakeInstruction::Authorize => {
             #[cfg(feature = "logging")]
-            pinocchio::msg!("Instruction: Authorize");
-
-            todo!()
+            pinocchio_log::log!("Instruction: Authorize");
+            //TODO
         }
         StakeInstruction::DelegateStake => {
             #[cfg(feature = "logging")]
-            pinocchio::msg!("Instruction: DelegateStake");
-
-            todo!()
+            pinocchio_log::log!("Instruction: DelegateStake");
+            //TODO
         }
         StakeInstruction::Split => {
             #[cfg(feature = "logging")]
-            pinocchio::msg!("Instruction: Split");
-
-            todo!()
+            pinocchio_log::log!("Instruction: Split");
+            //TODO
         }
         StakeInstruction::Withdraw => {
             #[cfg(feature = "logging")]
-            pinocchio::msg!("Instruction: Withdraw");
-
-            todo!()
+            pinocchio_log::log!("Instruction: Withdraw");
+            //TODO
         }
         StakeInstruction::Deactivate => {
             #[cfg(feature = "logging")]
-            pinocchio::msg!("Instruction: Deactivate");
-
-            todo!()
+            pinocchio_log::log!("Instruction: Deactivate");
+            //TODO
         }
         StakeInstruction::SetLockup => {
             #[cfg(feature = "logging")]
-            pinocchio::msg!("Instruction: SetLockup");
-
-            todo!()
+            pinocchio_log::log!("Instruction: SetLockup");
+            //TODO
         }
         StakeInstruction::Merge => {
             #[cfg(feature = "logging")]
-            pinocchio::msg!("Instruction: Merge");
-
-            todo!()
+            pinocchio_log::log!("Instruction: Merge");
+            //TODO
         }
         StakeInstruction::AuthorizeWithSeed => {
             #[cfg(feature = "logging")]
-            pinocchio::msg!("Instruction: AuthorizeWithSeed");
-
-            todo!()
+            pinocchio_log::log!("Instruction: AuthorizeWithSeed");
+            //TODO
         }
         StakeInstruction::InitializeChecked => {
             #[cfg(feature = "logging")]
-            pinocchio::msg!("Instruction: InitializeChecked");
-
-            todo!()
+            pinocchio_log::log!("Instruction: InitializeChecked");
+            //TODO
         }
         StakeInstruction::AuthorizeChecked => {
             #[cfg(feature = "logging")]
-            pinocchio::msg!("Instruction: AuthorizeChecked");
-
-            todo!()
+            pinocchio_log::log!("Instruction: InitializeChecked");
+            //TODO
         }
         StakeInstruction::AuthorizeCheckedWithSeed => {
             #[cfg(feature = "logging")]
-            pinocchio::msg!("Instruction: AuthorizeCheckedWithSeed");
-
-            todo!()
+            pinocchio_log::log!("Instruction: AuthorizeCheckedWithSeed");
+            //TODO
         }
         StakeInstruction::SetLockupChecked => {
             #[cfg(feature = "logging")]
-            pinocchio::msg!("Instruction: SetLockupChecked");
-
-            todo!()
+            pinocchio_log::log!("Instruction: SetLockupChecked");
+            //TODO
         }
         StakeInstruction::GetMinimumDelegation => {
             #[cfg(feature = "logging")]
-            pinocchio::msg!("Instruction: GetMinimumDelegation");
-
-            todo!()
+            pinocchio_log::log!("Instruction: GetMinimumDelegation");
+            //TODO
         }
         StakeInstruction::DeactivateDelinquent => {
             #[cfg(feature = "logging")]
-            pinocchio::msg!("Instruction: DeactivateDelinquent");
-
-            todo!()
+            pinocchio_log::log!("Instruction: DeactivateDelinquent");
+            //TODO
         }
         #[allow(deprecated)]
-        StakeInstruction::Redelegate => Err(ProgramError::InvalidInstructionData),
-        // NOTE we assume the program is going live after `move_stake_and_move_lamports_ixs` is
-        // activated
+        StakeInstruction::Redelegate => {
+            //Err(ProgramError::InvalidInstructionData),
+            // NOTE we assume the program is going live after `move_stake_and_move_lamports_ixs` is
+            // activated
+        }
         StakeInstruction::MoveStake => {
             #[cfg(feature = "logging")]
-            pinocchio::msg!("Instruction: MoveStake");
-
-            todo!()
+            pinocchio_log::log!("Instruction: MoveStake");
+            //TODO
         }
         StakeInstruction::MoveLamports => {
             #[cfg(feature = "logging")]
-            pinocchio::msg!("Instruction: MoveLamports");
-
-            todo!()
+            pinocchio_log::log!("Instruction: MoveLamports");
+            //TODO
         }
     }
     Ok(())
