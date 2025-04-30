@@ -11,45 +11,7 @@
 //! [`ProgramError::UnsupportedSysvar`]: https://docs.rs/solana-program-error/latest/solana_program_error/enum.ProgramError.html#variant.UnsupportedSysvar
 //! [`SysvarId::id`]: https://docs.rs/solana-sysvar-id/latest/solana_sysvar_id/trait.SysvarId.html
 //! [`SysvarId::check_id`]: https://docs.rs/solana-sysvar-id/latest/solana_sysvar_id/trait.SysvarId.html#tymethod.check_id
-//!
-//! # Examples
-//!
-//! Calling via the RPC client:
-//!
-//! ```
-//! # use solana_program::example_mocks::solana_sdk;
-//! # use solana_program::example_mocks::solana_rpc_client;
-//! # use solana_program::stake_history::StakeHistory;
-//! # use solana_sdk::account::Account;
-//! # use solana_rpc_client::rpc_client::RpcClient;
-//! # use solana_sdk_ids::sysvar::stake_history;
-//! # use anyhow::Result;
-//! #
-//! fn print_sysvar_stake_history(client: &RpcClient) -> Result<()> {
-//! #   client.set_get_account_response(stake_history::ID, Account {
-//! #       lamports: 114979200,
-//! #       data: vec![0, 0, 0, 0, 0, 0, 0, 0],
-//! #       owner: solana_sdk_ids::system_program::ID,
-//! #       executable: false,
-//! #       rent_epoch: 307,
-//! #   });
-//! #
-//!     let stake_history = client.get_account(&stake_history::ID)?;
-//!     let data: StakeHistory = bincode::deserialize(&stake_history.data)?;
-//!
-//!     Ok(())
-//! }
-//! #
-//! # let client = RpcClient::new(String::new());
-//! # print_sysvar_stake_history(&client)?;
-//! #
-//! # Ok::<(), anyhow::Error>(())
-//! ```
 
-/*
-use pinocchio::pubkey;
-#[cfg(feature = "bincode")]
-*/
 use pinocchio::{
     pubkey::{self, Pubkey},
     sysvars::clock::Epoch,

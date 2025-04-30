@@ -21,11 +21,6 @@ pub trait SysvarId {
 pub const MAX_ENTRIES: usize = 512; // it should never take as many as 512 epochs to warm up or cool down
 
 #[repr(C)]
-#[cfg_attr(feature = "frozen-abi", derive(solana_frozen_abi_macro::AbiExample))]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde_derive::Deserialize, serde_derive::Serialize)
-)]
 #[derive(Debug, PartialEq, Eq, Default, Clone)]
 pub struct StakeHistoryEntry {
     pub effective: [u8; 8],    // effective stake at this epoch
@@ -79,11 +74,6 @@ impl core::ops::Add for StakeHistoryEntry {
 }
 
 #[repr(C)]
-#[cfg_attr(feature = "frozen-abi", derive(solana_frozen_abi_macro::AbiExample))]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde_derive::Deserialize, serde_derive::Serialize)
-)]
 #[derive(Debug, PartialEq, Eq, Default, Clone)]
 pub struct StakeHistory(alloc::vec::Vec<(Epoch, StakeHistoryEntry)>);
 
