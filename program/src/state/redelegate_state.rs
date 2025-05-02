@@ -10,7 +10,6 @@ use pinocchio::sysvars::Sysvar;
 use pinocchio::sysvars::clock::Clock;
 
 use crate::{
-    error::MyProgramError,
     instruction::StartRedelegationIxData,
 };
 
@@ -51,7 +50,7 @@ impl RedelegateState {
         let seed_with_bump = &[Self::SEED.as_bytes(), owner, &[bump]];
         let derived = pubkey::create_program_address(seed_with_bump, &crate::ID)?;
         if derived != *pda {
-            return Err(MyProgramError::PdaMismatch.into());
+            return Err(ProgramError::InvalidSeeds);
         }
         Ok(())
     }

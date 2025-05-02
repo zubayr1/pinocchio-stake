@@ -1932,9 +1932,9 @@ checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
 name = "pinocchio"
-version = "0.8.1"
+version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "530596fa307103e53257f2cf064815919ee7fbc4c7ab999f6f13cc7067c3aff1"
+checksum = "81225b3b8ce092ac54e0d1c55a962be61efcad1d021030f0eb660875703db562"
 
 [[package]]
 name = "pinocchio-log"
@@ -3313,6 +3313,7 @@ dependencies = [
 name = "solana-pinocchio-starter"
 version = "0.1.0"
 dependencies = [
+ "bincode",
  "mollusk-svm",
  "mollusk-svm-bencher",
  "pinocchio",
@@ -3320,6 +3321,7 @@ dependencies = [
  "pinocchio-pubkey",
  "pinocchio-system",
  "pinocchio-token",
+ "serde",
  "shank",
  "solana-sdk",
  "spl-token",
