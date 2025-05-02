@@ -12,7 +12,6 @@ use pinocchio_token::{instructions::TransferChecked, state::{TokenAccount, Mint}
 use crate::state::load_acc_mut_unchecked;
 
 use crate::{
-    error::MyProgramError,
     state::{
         utils::{load_ix_data, DataLen},
         RedelegateState,
@@ -23,7 +22,7 @@ use crate::{
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StartRedelegationIxData {
     pub new_validator: Pubkey,
-    pub stake_amount: u64,
+    pub stake_amount: [u8; 8],
     pub bump: u8,
 }
 
@@ -103,13 +102,14 @@ pub fn process_complete_redelegation(accounts: &[AccountInfo], data: &[u8]) -> P
 
     redelegate_state.complete_redelegation();
 
-    if ix_data.stake_amount > vault_acc.amount() {
+    let stake_amount = u64::from_le_bytes(ix_data.stake_amount);
+    if stake_amount > vault_acc.amount() {
         (TransferChecked{
             from: owner_ata,
             to: vault,
             mint: mint_to_stake,
             authority: owner_acc,
-            amount: ix_data.stake_amount - vault_acc.amount(),
+            amount: stake_amount - vault_acc.amount(),
             decimals: mint_state.decimals(),
         }).invoke()
     }
@@ -128,7 +128,7 @@ pub fn process_complete_redelegation(accounts: &[AccountInfo], data: &[u8]) -> P
             to: owner_ata,
             mint: mint_to_stake,
             authority: state_acc,
-            amount: vault_acc.amount() - ix_data.stake_amount,
+            amount: vault_acc.amount() - stake_amount,
             decimals: mint_state.decimals(),
         }).invoke_signed(&[signer])
     }
